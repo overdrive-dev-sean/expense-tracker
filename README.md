@@ -29,6 +29,15 @@ there; the server's categorization and "kind" rules are shared across all of the
 Got a statement format that isn't supported yet? A sample CSV is usually all it
 takes to add it.
 
+## Screenshots
+*Fabricated demo data — no real financial info. Reproduce with `node scripts/demo-seed.mjs` (see [docs/screenshots](docs/screenshots/README.md)).*
+
+![Dashboard — spend by category, monthly trend, and the transaction table](docs/screenshots/dashboard.png)
+
+Click any transaction for full, copyable detail — including the statement fields that help identify a mystery charge:
+
+![Transaction detail panel](docs/screenshots/detail.png)
+
 ## Stack
 - **Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.x, SQLite (uvicorn)
 - **Frontend:** Vite + React, recharts (charts), papaparse (CSV parsing)
@@ -180,6 +189,22 @@ boundary (never stored as float).
 ## Layout
 ```
 backend/app/   main.py, database.py, models.py, schemas.py, categorize.py,
-               seed.py, routers/{transactions,categories,summary}.py
+               kinds.py, seed.py, routers/{transactions,categories,summary,tags}.py
 frontend/src/  ExpenseTracker.jsx, parseCsv.js, api.js, main.jsx
 ```
+
+## Roadmap
+Rough ideas, not commitments — and all within the offline, single-user, no-account
+ethos. Contributions welcome (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
+
+- **More institutions** — additional banks/cards, and OFX/QFX import alongside CSV.
+- **In-app CSV column mapping** — handle an unknown format without a code change.
+- **Recurring / subscription detection** — flag repeating charges.
+- **Budgets & month-over-month** — targets per category and simple trends.
+- **Better detail extraction** — surface merchant location on a map, smarter
+  "what is this charge?" lookups.
+- **Export & backup** — one-click DB export / encrypted-at-rest option.
+- **Editable keyword rules** in the UI (today they're seeded server-side).
+
+**Explicitly not planned:** linking live bank accounts, cloud sync, multi-user, or
+anything that sends your data off-device. This stays a local tool.
