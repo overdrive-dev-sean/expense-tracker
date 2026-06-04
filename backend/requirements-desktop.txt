@@ -1,4 +1,4 @@
 # Extra deps for building the single-file desktop app (on top of requirements.txt).
 # Install into the same venv before running build-desktop.sh / the Windows build.
 pywebview>=5.0
-pyinstaller>=6.0
+pyinstaller>=6.20.0
