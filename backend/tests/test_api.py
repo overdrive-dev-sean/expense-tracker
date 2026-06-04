@@ -22,7 +22,7 @@ def test_reference_dedup_and_categorize(client):
         _row(description="STARBUCKS 991", amount=6.75, reference="REF2"),
     ]
     r = client.post("/api/transactions/import", json=rows).json()
-    assert r == {"imported": 2, "skipped": 1}
+    assert (r["imported"], r["skipped"]) == (2, 1)
     txns = client.get("/api/transactions").json()
     by_desc = {t["description"]: t for t in txns}
     assert by_desc["SHELL OIL 12345"]["category"] == "Fuel"
@@ -106,6 +106,22 @@ def test_tags_and_scoped_summary(client):
     assert [t["name"] for t in client.get("/api/tags").json()] == ["trip-tokyo"]
     assert len(client.get("/api/transactions?tag=trip-tokyo").json()) == 1
     assert client.get("/api/summary?tag=trip-tokyo").json()["total_spend_cents"] == 20000
+
+
+def test_details_stored_and_enriched_on_reimport(client):
+    # First import without statement details.
+    client.post("/api/transactions/import", json=[
+        _row(description="LS WONDERS OF EARTH", amount=20.0, reference="R"),
+    ])
+    assert client.get("/api/transactions").json()[0]["details"] is None
+    # Re-import the same reference WITH details -> enriches, doesn't duplicate.
+    r = client.post("/api/transactions/import", json=[
+        _row(description="LS WONDERS OF EARTH", amount=20.0, reference="R",
+             details={"Address": "123 Main St", "City/State": "OAKLAND, CA"}),
+    ]).json()
+    assert (r["imported"], r["skipped"], r["enriched"]) == (0, 1, 1)
+    t = client.get("/api/transactions").json()[0]
+    assert t["details"]["City/State"] == "OAKLAND, CA"
 
 
 def test_category_create_and_system_delete_rules(client):

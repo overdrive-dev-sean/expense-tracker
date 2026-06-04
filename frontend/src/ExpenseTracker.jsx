@@ -32,10 +32,37 @@ export default function ExpenseTracker() {
   const [monthFilter, setMonthFilter] = useState(null);
   const [tagFilter, setTagFilter] = useState(null); // scope view + report to a sub-group
   const [chartsCollapsed, setChartsCollapsed] = useState(false);
+  const [expandedId, setExpandedId] = useState(null); // transaction detail panel
+  const [fontScale, setFontScale] = useState(() => {
+    const v = parseFloat(localStorage.getItem("expense:fontScale"));
+    return v >= 0.7 && v <= 2 ? v : 1;
+  });
   const [toast, setToast] = useState("");
   const fileRef = useRef();
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
+
+  const copyText = (s) => {
+    try { navigator.clipboard?.writeText(s); showToast("Copied to clipboard"); }
+    catch { showToast("Copy unavailable"); }
+  };
+
+  // Font sizing for the transactions section (Ctrl/Cmd +, -, 0). Persisted.
+  const adjustFont = (delta) => setFontScale((v) => {
+    const next = delta === 0 ? 1 : Math.min(2, Math.max(0.7, +(v + delta).toFixed(2)));
+    try { localStorage.setItem("expense:fontScale", String(next)); } catch {}
+    return next;
+  });
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); adjustFont(0.1); }
+      else if (e.key === "-" || e.key === "_") { e.preventDefault(); adjustFont(-0.1); }
+      else if (e.key === "0") { e.preventDefault(); adjustFont(0); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ── data loading (server is the source of truth) ────────────
   // The summary is scoped to the active tag sub-group (or the whole dataset).
@@ -287,8 +314,15 @@ export default function ExpenseTracker() {
             </div>
           )}
 
-          {/* table */}
-          <div style={S.card}>
+          {/* table — `zoom` scales the whole section; Ctrl/Cmd +/-/0 or these buttons */}
+          <div style={{ ...S.card, position: "relative" }}>
+            <div style={{ position: "absolute", top: 12, right: 14, display: "flex", gap: 4, alignItems: "center", zoom: 1 }}>
+              <span style={{ ...S.mono, fontSize: 10, color: "#5a626d", marginRight: 4 }}>TEXT</span>
+              <button style={S.sizeBtn} title="Smaller (Ctrl -)" onClick={() => adjustFont(-0.1)}>A−</button>
+              <button style={S.sizeBtn} title="Reset (Ctrl 0)" onClick={() => adjustFont(0)}>{Math.round(fontScale * 100)}%</button>
+              <button style={S.sizeBtn} title="Larger (Ctrl +)" onClick={() => adjustFont(0.1)}>A+</button>
+            </div>
+            <div style={{ zoom: fontScale }}>
             <div style={S.tableHead}>
               <span style={{ width: 64 }}>DATE</span>
               <span style={{ flex: 1 }}>DESCRIPTION</span>
@@ -303,11 +337,16 @@ export default function ExpenseTracker() {
                 const spend = isSpendTxn(t);
                 const kindLabel = KIND_LABELS[t.kind];
                 const amtColor = !spend ? "#5a626d" : isCredit ? "#5ad1a5" : "#fff";
+                const expanded = expandedId === t.id;
                 return (
-                <div key={t.id} className="rh" style={{ ...S.tr, animation: `rise .25s ease ${Math.min(i, 20) * 0.01}s both` }}>
+                <React.Fragment key={t.id}>
+                <div className="rh" style={{ ...S.tr, animation: `rise .25s ease ${Math.min(i, 20) * 0.01}s both` }}>
                   <span style={{ width: 64, ...S.mono, color: "#7d8597", fontSize: 12 }}>{t.date ? t.date.slice(5) : "—"}</span>
                   <span style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <span style={{ color: "#dfe3e8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.description}>{t.description}</span>
+                    <span onClick={() => setExpandedId(expanded ? null : t.id)} title="Click for details"
+                      style={{ color: "#dfe3e8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>
+                      <span style={{ color: "#5a626d" }}>{expanded ? "▾ " : "▸ "}</span>{t.description}
+                    </span>
                     {kindLabel && <span style={S.kindTag} title={`${kindLabel} — excluded from spend`}>{kindLabel}</span>}
                     {(t.tags || []).map((tg) => (
                       <span key={tg} style={S.tagChip} title="Click to remove from sub-group"
@@ -326,8 +365,42 @@ export default function ExpenseTracker() {
                   <span style={{ width: 88, textAlign: "right", ...S.mono, color: amtColor, fontWeight: 700 }}
                     title={!spend ? `${t.kind} — not counted as spend` : isCredit ? "Credit" : "Charge"}>{isCredit ? "+" : ""}{fmt(t.amount)}</span>
                 </div>
+                {expanded && (
+                  <div style={S.detail}>
+                    <div style={{ ...S.mono, fontSize: 14, color: "#fff", marginBottom: 8, userSelect: "text" }}>{t.description}</div>
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: "#9aa3ad", userSelect: "text", marginBottom: 10 }}>
+                      <span>{t.date || "no date"}</span>
+                      <span>{t.source}</span>
+                      <span style={{ color: amtColor, fontWeight: 700 }}>{isCredit ? "+" : ""}{fmt(t.amount)}</span>
+                      <span>{t.category}</span>
+                      <span>kind: {t.kind}</span>
+                    </div>
+                    {t.details && Object.keys(t.details).length > 0 ? (
+                      <div style={{ marginBottom: 10 }}>
+                        {Object.entries(t.details).map(([k, v]) => (
+                          <div key={k} style={{ display: "flex", gap: 10, fontSize: 12, userSelect: "text", padding: "2px 0" }}>
+                            <span style={{ width: 210, color: "#7d8597", flexShrink: 0, ...S.mono }}>{k}</span>
+                            <span style={{ color: "#dfe3e8", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: "#5a626d", marginBottom: 10 }}>
+                        No extra statement details stored for this row. Re-import this account's CSV to pull them in (it won't create duplicates).
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button style={S.ghostBtn} onClick={() => copyText(t.description)}>Copy description</button>
+                      <a style={{ ...S.ghostBtn, textDecoration: "none", display: "inline-block" }}
+                        href={`https://www.google.com/search?q=${encodeURIComponent(t.description)}`}
+                        target="_blank" rel="noreferrer">🔍 Search the web</a>
+                    </div>
+                  </div>
+                )}
+                </React.Fragment>
                 );
               })}
+            </div>
             </div>
           </div>
         </>
@@ -397,6 +470,8 @@ const S = {
   catTag: { fontFamily: "JetBrains Mono", fontSize: 11.5, padding: "4px 9px", borderRadius: 6, fontWeight: 700 },
   kindTag: { flexShrink: 0, fontFamily: "JetBrains Mono", fontSize: 9.5, letterSpacing: 0.5, textTransform: "uppercase", color: "#7d8597", background: "#1a1e24", border: "1px solid #2a313b", borderRadius: 4, padding: "2px 6px" },
   tagChip: { flexShrink: 0, fontFamily: "JetBrains Mono", fontSize: 10, color: "#6aa9ff", background: "rgba(106,169,255,0.12)", border: "1px solid #2a3a52", borderRadius: 10, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" },
+  detail: { userSelect: "text", background: "#0f1216", borderLeft: "2px solid #e8b04b", borderBottom: "1px solid #1a1e24", padding: "12px 16px", margin: "0 0 2px 6px", animation: "rise .2s ease both" },
+  sizeBtn: { fontFamily: "JetBrains Mono", fontSize: 11, color: "#9aa3ad", background: "#0d0f12", border: "1px solid #2a313b", borderRadius: 6, padding: "3px 7px", cursor: "pointer", minWidth: 32 },
   addTagBtn: { flexShrink: 0, fontFamily: "JetBrains Mono", fontSize: 10, color: "#5a626d", background: "transparent", border: "1px dashed #2a313b", borderRadius: 10, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" },
   toast: { position: "sticky", bottom: 12, margin: "14px auto 0", width: "fit-content", background: "#e8b04b", color: "#0d0f12", padding: "9px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, fontFamily: "JetBrains Mono", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" },
   footer: { marginTop: 14, textAlign: "center", color: "#5a626d", fontSize: 11.5, fontFamily: "JetBrains Mono" },

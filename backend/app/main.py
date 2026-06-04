@@ -20,14 +20,17 @@ from .seed import seed_if_empty
 from .routers import categories, summary, tags, transactions
 
 
-def _migrate_kind_column(db):
-    """Lightweight, idempotent migration (no Alembic yet): add the `kind` column
-    to a pre-existing transactions table and backfill it by classifying each row.
-    On a fresh DB the column already exists, so this only backfills NULLs."""
+def _migrate_columns(db):
+    """Lightweight, idempotent migrations (no Alembic yet): add columns that
+    pre-existing databases lack, then backfill where it makes sense."""
     cols = [c["name"] for c in inspect(engine).get_columns("transactions")]
-    if "kind" not in cols:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if "kind" not in cols:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN kind VARCHAR"))
+        if "details" not in cols:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN details JSON"))
+    # Backfill kind (derived from description + amount); details stay NULL until
+    # a (re-)import provides them.
     rows = db.scalars(select(Transaction).where(Transaction.kind.is_(None))).all()
     for t in rows:
         t.kind = classify_kind(t.description, t.amount_cents)
@@ -45,7 +48,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_if_empty(db)
-        _migrate_kind_column(db)
+        _migrate_columns(db)
     finally:
         db.close()
     yield

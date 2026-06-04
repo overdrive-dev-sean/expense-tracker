@@ -24,11 +24,14 @@ class TransactionImportItem(BaseModel):
     # Provider's own category column, pre-mapped client-side to our scheme.
     # Used only as a fallback hint; keyword/learned rules still override it.
     category_hint: str | None = None
+    # Extra source columns (statement descriptor, address, etc.) for lookups.
+    details: dict | None = None
 
 
 class ImportResult(BaseModel):
     imported: int
     skipped: int
+    enriched: int = 0  # existing rows that gained statement details on re-import
 
 
 class TransactionOut(BaseModel):
@@ -41,6 +44,7 @@ class TransactionOut(BaseModel):
     is_manual: bool
     kind: str | None
     tags: list[str] = []
+    details: dict | None = None
 
 
 class TransactionPatch(BaseModel):

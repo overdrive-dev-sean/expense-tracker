@@ -58,6 +58,7 @@ def _to_out(t: Transaction) -> TransactionOut:
         is_manual=t.is_manual,
         kind=t.kind,
         tags=sorted(tag.name for tag in t.tags),
+        details=t.details or None,
     )
 
 
@@ -83,7 +84,18 @@ def import_transactions(
     # In-batch occurrence counter per identical (date|desc|cents|card) tuple.
     occurrences: dict[tuple, int] = {}
 
-    imported = skipped = 0
+    def _enrich(filter_):
+        """On a re-import dup, fill in statement details if the existing row
+        doesn't have them yet. Returns 1 if it enriched, else 0."""
+        if not item.details:
+            return 0
+        existing = db.scalar(select(Transaction).where(filter_))
+        if existing is not None and not existing.details:
+            existing.details = item.details
+            return 1
+        return 0
+
+    imported = skipped = enriched = 0
     for item in items:
         txn_date = _parse_date(item.date)
         amount_cents = int(round(item.amount * 100))
@@ -93,6 +105,7 @@ def import_transactions(
         if reference is not None:
             if reference in seen_refs:
                 skipped += 1
+                enriched += _enrich(Transaction.reference == reference)
                 continue
             seen_refs.add(reference)
         else:
@@ -107,6 +120,7 @@ def import_transactions(
             )
             if signature in seen_sigs:
                 skipped += 1
+                enriched += _enrich(Transaction.signature == signature)
                 continue
             seen_sigs.add(signature)
 
@@ -121,6 +135,7 @@ def import_transactions(
                 category_id=category.id if category else None,
                 is_manual=False,
                 kind=kind,
+                details=item.details or None,
                 reference=reference,
                 signature=signature,
             )
@@ -130,7 +145,7 @@ def import_transactions(
     db.commit()
     # Bank debits that match a credit-card payment = the bank paying the card.
     reconcile_card_payments(db)
-    return ImportResult(imported=imported, skipped=skipped)
+    return ImportResult(imported=imported, skipped=skipped, enriched=enriched)
 
 
 @router.get("", response_model=list[TransactionOut])

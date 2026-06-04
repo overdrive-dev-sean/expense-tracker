@@ -120,6 +120,16 @@ export function normalizeRows(rawRows, filename) {
     if (!isNaN(d)) iso = d.toISOString().slice(0, 10);
     const reference = (hRef ? row[hRef] : "").toString().trim() || null;
 
+    // Keep the remaining statement columns (Extended Details, address, "Appears
+    // On Your Statement As", etc.) so a charge can be identified later.
+    const skip = new Set([hDate, hDesc, hAmt, hDebit, hCredit, hRunBal]);
+    const details = {};
+    for (const h of headers) {
+      if (!h || skip.has(h)) continue;
+      const v = (row[h] ?? "").toString().trim();
+      if (v) details[h] = v;
+    }
+
     out.push({
       date: iso,
       description: desc,
@@ -128,6 +138,7 @@ export function normalizeRows(rawRows, filename) {
       card: card || null,       // dedup component (not the filename)
       reference,
       category_hint: hint,
+      details: Object.keys(details).length ? details : null,
     });
   }
   return out;

@@ -1,7 +1,7 @@
 """SQLAlchemy models. Money is stored as integer cents everywhere."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Date, Table
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Date, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -63,6 +63,9 @@ class Transaction(Base):
     # Spend classification (purchase/income/transfer/card_payment/refund/p2p).
     # Makes exclusions from spend explicit; see kinds.py.
     kind: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Extra columns from the source statement (Amex "Extended Details", address,
+    # "Appears On Your Statement As", etc.) kept as-is for forensic lookups.
+    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Dedup keys: a row uses exactly ONE. When the CSV provides a genuine
     # transaction id (AmEx "Reference") we key off `reference`; otherwise we
     # fall back to the computed `signature` (date|description|amount_cents).
