@@ -13,7 +13,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Category, CategoryRule, LearnedMerchant
+from .models import Category, LearnedMerchant
 
 # Categories never matched by keyword scanning.
 SKIP_KEYWORD_MATCH = {"Other", "Uncategorized"}

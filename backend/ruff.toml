@@ -1,0 +1,6 @@
+line-length = 100
+
+[lint]
+# pyflakes (F) + pycodestyle (E/W) defaults; line-length is enforced by the
+# formatter elsewhere, so don't fail builds on long lines.
+ignore = ["E501"]

@@ -15,7 +15,15 @@ Kinds:
                 the user manually tags it (then it counts)
 """
 
+import re
+
 KINDS = {"purchase", "income", "transfer", "card_payment", "refund", "p2p"}
+
+
+def _has(d: str, terms) -> bool:
+    """True if any term appears at the start of a word in d (left word
+    boundary), so e.g. 'chase' matches 'chase credit' but not 'purchase'."""
+    return any(re.search(rf"(?<!\w){re.escape(t)}", d) for t in terms)
 
 # Credit-card issuers; a card payment is an issuer name + a payment indicator.
 _ISSUERS = (
@@ -39,15 +47,15 @@ _INBOUND_HINTS = ("from", "received", "deposit")
 
 
 def _is_card_payment(d: str) -> bool:
-    if any(p in d for p in _CARD_PAYMENT_PHRASES):
+    if _has(d, _CARD_PAYMENT_PHRASES):
         return True
-    return any(i in d for i in _ISSUERS) and any(p in d for p in _PAY_INDICATORS)
+    return _has(d, _ISSUERS) and _has(d, _PAY_INDICATORS)
 
 
 def _is_transfer(d: str) -> bool:
     if "online banking transfer" in d:
         return True
-    return "transfer" in d and any(x in d for x in ("chk", "sav", "checking", "savings"))
+    return _has(d, ("transfer",)) and _has(d, ("chk", "sav", "checking", "savings"))
 
 
 def classify_kind(description: str, amount_cents: int) -> str:
@@ -60,16 +68,16 @@ def classify_kind(description: str, amount_cents: int) -> str:
         return "card_payment"
     if _is_transfer(d):
         return "transfer"
-    if any(p in d for p in _P2P):
+    if _has(d, _P2P):
         # inbound P2P (money received) is income; sent is ambiguous P2P
-        if inbound or any(h in d for h in _INBOUND_HINTS):
+        if inbound or _has(d, _INBOUND_HINTS):
             return "income"
         return "p2p"
-    if any(x in d for x in _INCOME):
+    if _has(d, _INCOME):
         return "income"
     # Inbound credit on a card statement labeled as a payment = the card being
     # paid (e.g. Amex "ONLINE PAYMENT - THANK YOU"). Not income, not a refund.
-    if inbound and any(x in d for x in _CARD_PAID_INBOUND):
+    if inbound and _has(d, _CARD_PAID_INBOUND):
         return "card_payment"
     # Fall back to direction: money in that isn't income/transfer is a refund;
     # money out is a purchase.
