@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# SQLite database (owner-controlled, never committed)
+backend/*.db
+
+# Node / Vite
+node_modules/
+frontend/dist/
+
+# PyInstaller desktop build artifacts
+backend/build/
+backend/dist/
+*.spec.bak
+
+# Secrets / env
+.env
+*.env
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local Claude Code settings (machine-specific permissions)
+.claude/
