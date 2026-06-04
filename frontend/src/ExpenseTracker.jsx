@@ -110,13 +110,15 @@ export default function ExpenseTracker() {
   };
 
   // ── tags / sub-groups ───────────────────────────────────────
-  const addTag = async (txn) => {
-    const name = (window.prompt("Add to sub-group (tag):") || "").trim();
-    if (!name) return;
-    const next = Array.from(new Set([...(txn.tags || []), name]));
+  const applyTag = async (txn, rawName) => {
+    const name = (rawName || "").trim();
+    if (!name || (txn.tags || []).includes(name)) return;
+    const next = [...(txn.tags || []), name];
     try { await setTransactionTags(txn.id, next); await refresh(); showToast(`Tagged “${name}”`); }
     catch (e) { showToast("Tag failed: " + e.message); }
   };
+  // Prompt for a brand-new tag name (existing ones are one-click chips in the row).
+  const addTag = (txn) => applyTag(txn, window.prompt("New sub-group (tag) name:") || "");
   const removeTag = async (txn, name) => {
     const next = (txn.tags || []).filter((t) => t !== name);
     try { await setTransactionTags(txn.id, next); await refresh(); }
@@ -352,7 +354,14 @@ export default function ExpenseTracker() {
                       <span key={tg} style={S.tagChip} title="Click to remove from sub-group"
                         onClick={() => removeTag(t, tg)}>🏷 {tg} ×</span>
                     ))}
-                    <button style={S.addTagBtn} title="Add to a sub-group" onClick={() => addTag(t)}>＋tag</button>
+                    <button style={S.addTagBtn} title="Create a new sub-group tag" onClick={() => addTag(t)}>＋tag</button>
+                    {/* one-click apply for existing tags not already on this row */}
+                    {tagList
+                      .filter((g) => !(t.tags || []).includes(g.name))
+                      .map((g) => (
+                        <span key={g.name} style={S.tagSuggest} title={`Tag with “${g.name}”`}
+                          onClick={() => applyTag(t, g.name)}>+ {g.name}</span>
+                      ))}
                   </span>
                   <span style={{ width: 116, ...S.mono, color: "#9aa3ad", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.source}>{t.source}</span>
                   <span style={{ width: 142 }}>
@@ -473,6 +482,7 @@ const S = {
   detail: { userSelect: "text", background: "#0f1216", borderLeft: "2px solid #e8b04b", borderBottom: "1px solid #1a1e24", padding: "12px 16px", margin: "0 0 2px 6px", animation: "rise .2s ease both" },
   sizeBtn: { fontFamily: "JetBrains Mono", fontSize: 11, color: "#9aa3ad", background: "#0d0f12", border: "1px solid #2a313b", borderRadius: 6, padding: "3px 7px", cursor: "pointer", minWidth: 32 },
   addTagBtn: { flexShrink: 0, fontFamily: "JetBrains Mono", fontSize: 10, color: "#5a626d", background: "transparent", border: "1px dashed #2a313b", borderRadius: 10, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" },
+  tagSuggest: { flexShrink: 0, fontFamily: "JetBrains Mono", fontSize: 10, color: "#7d8597", background: "transparent", border: "1px solid #2a313b", borderRadius: 10, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap", opacity: 0.75 },
   toast: { position: "sticky", bottom: 12, margin: "14px auto 0", width: "fit-content", background: "#e8b04b", color: "#0d0f12", padding: "9px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, fontFamily: "JetBrains Mono", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" },
   footer: { marginTop: 14, textAlign: "center", color: "#5a626d", fontSize: 11.5, fontFamily: "JetBrains Mono" },
 };
