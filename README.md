@@ -137,6 +137,16 @@ pip install -r requirements.txt -r requirements-desktop.txt
 ```
 Run `./dist/ExpenseTracker`. (On WSL this opens via WSLg.)
 
+### Prebuilt downloads (releases)
+Pushing a version tag triggers a GitHub Actions workflow that builds the app on
+Windows, macOS, and Linux and attaches the binaries to a Release:
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+Then grab the binary for your OS from the repo's **Releases** page — no build
+needed. (Windows is the most exercised target; macOS/Linux are best-effort and
+may need the platform webview runtime noted above.)
+
 ### Useful flags / tips
 - **Headless / testing:** `ExpenseTracker --no-window` starts the server and prints
   a `http://127.0.0.1:<port>` URL without opening a window.

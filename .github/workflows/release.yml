@@ -1,0 +1,85 @@
+name: Release
+
+# Cut a release by pushing a version tag:  git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            out: ExpenseTracker
+            artifact: ExpenseTracker-linux
+          - os: macos-latest
+            out: ExpenseTracker
+            artifact: ExpenseTracker-macos
+          - os: windows-latest
+            out: ExpenseTracker.exe
+            artifact: ExpenseTracker-windows.exe
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install build deps
+        working-directory: backend
+        run: pip install -r requirements.txt -r requirements-desktop.txt
+
+      - name: Package (PyInstaller)
+        working-directory: backend
+        run: pyinstaller --noconfirm desktop.spec
+
+      - name: Rename for platform
+        shell: bash
+        working-directory: backend/dist
+        run: mv "${{ matrix.out }}" "${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: backend/dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release + upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Prebuilt single-file desktop apps. Download the one for your OS.
+
+            - **Windows**: `ExpenseTracker-windows.exe` — double-click. Needs the
+              Microsoft Edge WebView2 Runtime (preinstalled on Win11 / most Win10).
+            - **macOS**: `ExpenseTracker-macos` — `chmod +x`, then right-click → Open
+              (unsigned). Uses the built-in WebKit.
+            - **Linux**: `ExpenseTracker-linux` — `chmod +x`. The native window needs
+              WebKitGTK (`sudo apt install gir1.2-webkit2-4.1`); or run with
+              `--no-window` and open the printed localhost URL.
+
+            Your data stays local in a per-user folder; nothing is uploaded.
