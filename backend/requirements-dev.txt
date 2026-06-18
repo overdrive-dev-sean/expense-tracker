@@ -1,4 +1,4 @@
 # Test + lint deps (CI / local development).
 pytest>=8.0
 httpx>=0.28.1
-ruff>=0.6
+ruff>=0.15.17
